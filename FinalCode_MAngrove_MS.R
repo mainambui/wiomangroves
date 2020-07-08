@@ -413,11 +413,15 @@ pvci.3 <- partial(vci.crf.1, pred.var = c("tidecm", "tx90","ccd"), chull = TRUE,
 pvci.4 <- partial(vci.crf.1, pred.var = c("slr", "avmsl"), chull = TRUE, parallel = TRUE)
 stopCluster()
 
-
-
 ##revision
+coordinates(all.data)<-~x+y
+pts<-st_as_sf(all.data)
+typol<-readOGR(dsn='/Volumes/Data-1/Projects/CCVA/Mangrove/Sectors/',"mangrovewithtypology")
+polys<-st_as_sf(typol)
+crs(all.data)<-crs(polys)
+out1 <- st_join(pts, polys, join = st_nearest_feature)
 
-
+c<-aggregate(erosion ~ FIN_TYP,a,mean)
 
 
 
