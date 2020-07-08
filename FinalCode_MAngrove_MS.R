@@ -161,11 +161,6 @@ fig<-ggplot(data=pdp.data,aes(x=value,y=response, col=indicator)) + geom_line() 
 fig+theme_ms()
 dev.off()
 
-
-
-
-
-
 ##plot top variables
 #make future predictions
 #prepare data
@@ -419,7 +414,9 @@ pts<-st_as_sf(all.data)
 typol<-readOGR(dsn='/Volumes/Data-1/Projects/CCVA/Mangrove/Sectors/',"mangrovewithtypology")
 polys<-st_as_sf(typol)
 crs(all.data)<-crs(polys)
-out1 <- st_join(pts, polys, join = st_nearest_feature)
+all.data_rev <- as.data.frame(st_join(pts, polys, join = st_nearest_feature))
+
+all.data_rev1<-all.data_rev[,c(2:36,44)]
 
 c<-aggregate(erosion ~ FIN_TYP,a,mean)
 
