@@ -1,7 +1,7 @@
 #Random forest methods
 rm(list=ls())
 library(randomForest)
-library(party)
+#library(party)
 library(dplyr)
 library(pdp)
 library(vip)
@@ -11,17 +11,45 @@ library(rpart.plot)
 library(raster)
 library(data.table)
 library(QCA)
+library(rgdal)
+library(sf)
+library(partykit)
+library(parallel)
+library(usdm)
 
-setwd('/Volumes/Data-1/Projects/CCVA/Mangrove/Results_FINAL/Dataset_Final/Unnormalised/')
-load("rforestTune.all.RData")
-all.data<-read.csv("all.data.csv")
+setwd('/Volumes/Data/Projects/CCVA/Mangrove/Results_FINAL/Dataset_Final/Unnormalised/')
+load("rforestTune.all_gcb_rev1.RData")
+#coordinates(all.data)<-~x+y
+#typol<-readOGR(dsn='/Volumes/Data/Projects/CCVA/Mangrove/Sectors/',"mangrovewithtypology")
+#crs(all.data)<-crs(typol)
+#polys<-st_as_sf(typol)
+#pts<-st_as_sf(all.data)
+#all.data_rev <- as.data.frame(st_join(pts, polys, join = st_nearest_feature))
+
+
+#all.data_rev$FIN_TYP[all.data_rev$FIN_TYP==7] <-'Non_filter_Arheic'
+#all.data_rev$FIN_TYP[all.data_rev$FIN_TYP==1] <-'small_deltas'
+#all.data_rev$FIN_TYP[all.data_rev$FIN_TYP==2] <-'tidal_systems'
+#all.data_rev$FIN_TYP[all.data_rev$FIN_TYP==3] <-'lagoons'
+#all.data_rev$FIN_TYP[all.data_rev$FIN_TYP==51] <-'largeRiversTidalDeltas'
+
+#all.data<-read.csv("all.data.csv")
+#all.data$FIN_TYP<-as.factor(all.data_rev$FIN_TYP)
+
+#colnames(all.data)
+#colnames(all.data)[40]<-"formation"
+#all.data<-all.data[,2:40]
+#write.csv(all.data,"all.data.csv")
+#save.img("rforestTune.all_gcb_rev1.RData")
+
 #train.index <- createDataPartition(c(all.data$layer), times=2, p = .30, list = FALSE)
 train <- all.data[train.index[,1],]
 test<-all.data[ train.index[,2],]
-PredictVar<-all.data[,c(5:14,22,24,25)]
+#PredictVar<-all.data[,c(5:14,22,24,25)]
+PredictVar<-all.data[,c(5:14,22,24,25,39)]#new
 predictors<-PredictVar[,-c(10,12)]
-all.data.vci<-cbind(all.data[,"vci"],predictors)
-all.data.ndvi<-cbind(all.data[,"ndvi"],predictors)
+all.data.vci<-cbind(all.data[,"vci"],predictors[,-c(7,12)])
+all.data.ndvi<-cbind(all.data[,"ndvi"],predictors[,-c(7,12)])
 colnames(all.data.ndvi)[1]<-"ndvi"
 colnames(all.data.vci)[1]<-"vci"
 
@@ -41,8 +69,12 @@ task.pred = predict(regr.mod, task = regr.task, subset = train.index[,2])
 task.pred.v = predict(regr.mod.v, task = regr.task.v, subset = train.index[,2])
 
 performance(task.pred, measures=list(mse, rsq))
-performance(task.pred.v, measures=list(mse, rsq))
+#mse         rsq 
+0.006779552 0.606626456 
 
+performance(task.pred.v, measures=list(mse, rsq))
+#mse         rsq 
+0.004794041 0.471933114 
 
 plot(as.data.frame(task.pred)[,c("truth","response")])
 plot(as.data.frame(task.pred.v)[,c("truth","response")])
@@ -58,12 +90,11 @@ getParamSet(regr.lrn.v)
 library(parallel)
 library(parallelMap)
  # Initialize paralelllization
-parallelStartSocket(cpus = 12)
+parallelStartSocket(cpus = 24)
 
 ps = makeParamSet(
 makeIntegerParam("ntree", lower = 1, upper = 100),
 makeIntegerParam("mtry", lower =  1, upper = 10 ))
-
 
 ctrl = makeTuneControlGrid(resolution = 10)
 rdesc = makeResampleDesc("CV", iters = 5)
@@ -72,24 +103,28 @@ tune.cforest = tuneParams(regr.lrn, task = regr.task, resampling = rdesc, par.se
 tune.cforest.v = tuneParams(regr.lrn.v, task = regr.task.v, resampling = rdesc, par.set = ps, control = ctrl)
 
 plotHyperParsEffect(generateHyperParsEffectData(tune.cforest), x = "ntree", y = "mtry", z = "mse.test.mean",
-+plot.type = "heatmap")
+plot.type = "heatmap")
+
 tune.cforest$x
 $ntree
-[1] 78
-
-$mtry
-[1] 2
-
-plotHyperParsEffect(generateHyperParsEffectData(tune.cforest.v), x = "ntree", y = "mtry", z = "mse.test.mean", plot.type = "heatmap")
-
-tune.cforest.v$x
-$ntree
-[1] 78
+[1] 89
 
 $mtry
 [1] 3
 
+plotHyperParsEffect(generateHyperParsEffectData(tune.cforest.v), x = "ntree", y = "mtry", z = "mse.test.mean", plot.type = "heatmap")
+
+tune.cforest.v$x
+> tune.cforest.v$x
+$ntree
+[1] 100
+
+$mtry
+[1] 4
+
 parallelStop()
+
+save.image("rforestTune.all_gcb_rev1.RData")
 
 regr.lrn.best = setHyperPars(makeLearner("regr.cforest"), ntree = tune.cforest$x$ntree, mtry = tune.cforest$x$mtry)
 regr.lrn.best.v = setHyperPars(makeLearner("regr.cforest"), ntree = tune.cforest.v$x$ntree, mtry = tune.cforest.v$x$mtry)
@@ -97,15 +132,20 @@ regr.lrn.best.v = setHyperPars(makeLearner("regr.cforest"), ntree = tune.cforest
 regr.mod.best = train(regr.lrn.best, regr.task, subset = train.index[,1])
 regr.mod.best.v = train(regr.lrn.best.v, regr.task.v, subset = train.index[,1])
 
-vimp = unlist(getFeatureImportance(regr.mod.best)$res)
-vimp.v = unlist(getFeatureImportance(regr.mod.best.v)$res)
+vimp = unlist(getFeatureImportance(regr.mod.best,OOB=TRUE, conditional = TRUE)$res)
+vimp.v = unlist(getFeatureImportance(regr.mod.best.v,OOB=TRUE, conditional = TRUE)$res)
+
+system.time(trial<-getFeatureImportance(regr.mod.best,conditional=TRUE,OOB=TRUE, cores=12))
+
+#remotes::install_github("mlr3learners/mlr3learners.partykit")
 
 barplot(vimp)
 barplot(vimp.v)
 
 
-save.image("rforestTune.all.RData")
-load("rforestTune.all.RData")
+
+#save.image('revision.anal.RData')
+#load('revision.anal.RData')
 
 ##
 pdp.all = generatePartialDependenceData(regr.mod.best, regr.task, individual = F, n = c(10, 25000))
@@ -170,6 +210,9 @@ predictors.future$avmsl<-all.data$wcs.msl
 predictors.future$slr<-all.data$wcs.trend
 predictors.future$ccd<-all.data$cdd.rcp85
 predictors.future$tx90<-all.data$tx9085
+
+summary(all.data[,c('avmsl','wcs.msl','slr','wcs.trend','ccd','cdd.rcp85','tx90','tx9085')])
+
 ##
 future.ndvi<- predict(regr.mod.best, newdata = predictors.future, OOB=FALSE, type = "response")
 future.vci<- predict(regr.mod.best.v, newdata = predictors.future, OOB=FALSE, type = "response")
@@ -221,6 +264,10 @@ if (require(ncdf4)) {
 }
 rm(exposure.stack)
 
+
+save.image("rforestTune.all_gcb_rev1.RData")
+
+
 ##partial dependence and exposure
 colnames(predictors.future)
 
@@ -241,64 +288,66 @@ colnames(predictors.future)
 #[1] "elevation" "erosion"   "gravity"   "ldi"       "sla"       "slope"     "tidecm"   
 #[8] "tx90"      "ccd"       "slr"       "avmsl"   
 
-df1<- new.data11[,c("elevation","eros.med","grav.med","ldi.med","sla.med","slope.med","tide.med","tx90.med","ccd.med","slr.med", "avmsl.med")]
-colnames(df1)<-c("elevation","erosion","gravity","ldi","sla","slope","tidecm","tx90","ccd","slr","avmsl" ) 
+df1<- new.data11[,c("elevation","eros.med","grav.med","ldi.med","sla.med","slope.med","tide.med","tx90.med","ccd.med","slr.med", "avmsl.med","formation")]
+colnames(df1)<-c("elevation","erosion","gravity","ldi","sla","slope","tidecm","tx90","ccd","slr","avmsl","formation" ) 
 
-df2<- new.data11[,c("elev.med","erosion","grav.med","ldi.med","sla.med","slope.med","tide.med","tx90.med","ccd.med","slr.med", "avmsl.med")]
-colnames(df2)<-c("elevation","erosion","gravity","ldi","sla","slope","tidecm","tx90","ccd","slr","avmsl" ) 
+df2<- new.data11[,c("elev.med","erosion","grav.med","ldi.med","sla.med","slope.med","tide.med","tx90.med","ccd.med","slr.med", "avmsl.med","formation")]
+colnames(df2)<-c("elevation","erosion","gravity","ldi","sla","slope","tidecm","tx90","ccd","slr","avmsl","formation" ) 
 
-df3<- new.data11[,c("elev.med","eros.med","gravity","ldi.med","sla.med","slope.med","tide.med","tx90.med","ccd.med","slr.med", "avmsl.med")]
-colnames(df3)<-c("elevation","erosion","gravity","ldi","sla","slope","tidecm","tx90","ccd","slr","avmsl" ) 
+df3<- new.data11[,c("elev.med","eros.med","gravity","ldi.med","sla.med","slope.med","tide.med","tx90.med","ccd.med","slr.med", "avmsl.med","formation")]
+colnames(df3)<-c("elevation","erosion","gravity","ldi","sla","slope","tidecm","tx90","ccd","slr","avmsl","formation" ) 
 
-df4<- new.data11[,c("elev.med","eros.med","grav.med","ldi","sla.med","slope.med","tide.med","tx90.med","ccd.med","slr.med", "avmsl.med")]
-colnames(df4)<-c("elevation","erosion","gravity","ldi","sla","slope","tidecm","tx90","ccd","slr","avmsl" ) 
+df4<- new.data11[,c("elev.med","eros.med","grav.med","ldi","sla.med","slope.med","tide.med","tx90.med","ccd.med","slr.med", "avmsl.med","formation")]
+colnames(df4)<-c("elevation","erosion","gravity","ldi","sla","slope","tidecm","tx90","ccd","slr","avmsl","formation" ) 
 
-df5<- new.data11[,c("elev.med","eros.med","grav.med","ldi.med","sla","slope.med","tide.med","tx90.med","ccd.med","slr.med", "avmsl.med")]
-colnames(df5)<-c("elevation","erosion","gravity","ldi","sla","slope","tidecm","tx90","ccd","slr","avmsl" ) 
+df5<- new.data11[,c("elev.med","eros.med","grav.med","ldi.med","sla","slope.med","tide.med","tx90.med","ccd.med","slr.med", "avmsl.med","formation")]
+colnames(df5)<-c("elevation","erosion","gravity","ldi","sla","slope","tidecm","tx90","ccd","slr","avmsl","formation" ) 
 
-df6<- new.data11[,c("elev.med","eros.med","grav.med","ldi.med","sla.med","slope","tide.med","tx90.med","ccd.med","slr.med", "avmsl.med")]
-colnames(df6)<-c("elevation","erosion","gravity","ldi","sla","slope","tidecm","tx90","ccd","slr","avmsl" ) 
+df6<- new.data11[,c("elev.med","eros.med","grav.med","ldi.med","sla.med","slope","tide.med","tx90.med","ccd.med","slr.med", "avmsl.med","formation")]
+colnames(df6)<-c("elevation","erosion","gravity","ldi","sla","slope","tidecm","tx90","ccd","slr","avmsl","formation" ) 
 
-df7<- new.data11[,c("elev.med","eros.med","grav.med","ldi.med","sla.med","slope.med","tidecm","tx90.med","ccd.med","slr.med", "avmsl.med")]
-colnames(df7)<-c("elevation","erosion","gravity","ldi","sla","slope","tidecm","tx90","ccd","slr","avmsl" ) 
+df7<- new.data11[,c("elev.med","eros.med","grav.med","ldi.med","sla.med","slope.med","tidecm","tx90.med","ccd.med","slr.med", "avmsl.med","formation")]
+colnames(df7)<-c("elevation","erosion","gravity","ldi","sla","slope","tidecm","tx90","ccd","slr","avmsl","formation" ) 
 
-df8<- new.data11[,c("elev.med","eros.med","grav.med","ldi.med","sla.med","slope.med","tide.med","tx90","ccd.med","slr.med", "avmsl.med")]
-colnames(df8)<-c("elevation","erosion","gravity","ldi","sla","slope","tidecm","tx90","ccd","slr","avmsl" ) 
+df8<- new.data11[,c("elev.med","eros.med","grav.med","ldi.med","sla.med","slope.med","tide.med","tx90","ccd.med","slr.med", "avmsl.med","formation")]
+colnames(df8)<-c("elevation","erosion","gravity","ldi","sla","slope","tidecm","tx90","ccd","slr","avmsl","formation" ) 
 
-df9<- new.data11[,c("elev.med","eros.med","grav.med","ldi.med","sla.med","slope.med","tide.med","tx90.med","ccd","slr.med", "avmsl.med")]
-colnames(df9)<-c("elevation","erosion","gravity","ldi","sla","slope","tidecm","tx90","ccd","slr","avmsl" )
+df9<- new.data11[,c("elev.med","eros.med","grav.med","ldi.med","sla.med","slope.med","tide.med","tx90.med","ccd","slr.med", "avmsl.med","formation")]
+colnames(df9)<-c("elevation","erosion","gravity","ldi","sla","slope","tidecm","tx90","ccd","slr","avmsl" ,"formation")
 
-df10<- new.data11[,c("elev.med","eros.med","grav.med","ldi.med","sla.med","slope.med","tide.med","tx90.med","ccd.med","slr", "avmsl.med")]
-colnames(df10)<-c("elevation","erosion","gravity","ldi","sla","slope","tidecm","tx90","ccd","slr","avmsl")
+df10<- new.data11[,c("elev.med","eros.med","grav.med","ldi.med","sla.med","slope.med","tide.med","tx90.med","ccd.med","slr", "avmsl.med","formation")]
+colnames(df10)<-c("elevation","erosion","gravity","ldi","sla","slope","tidecm","tx90","ccd","slr","avmsl","formation")
 
-df11<- new.data11[,c("elev.med","eros.med","grav.med","ldi.med","sla.med","slope.med","tide.med","tx90.med","ccd.med","slr.med", "avmsl")]
-colnames(df11)<-c("elevation","erosion","gravity","ldi","sla","slope","tidecm","tx90","ccd","slr","avmsl")
+df11<- new.data11[,c("elev.med","eros.med","grav.med","ldi.med","sla.med","slope.med","tide.med","tx90.med","ccd.med","slr.med", "avmsl","formation")]
+colnames(df11)<-c("elevation","erosion","gravity","ldi","sla","slope","tidecm","tx90","ccd","slr","avmsl","formation")
 
-dfList<-list(df1,df2,df3,df4,df5,df6,df7,df8,df9,df10,df11)
+df12<- new.data11[,c("elev.med","eros.med","grav.med","ldi.med","sla.med","slope.med","tide.med","tx90.med","ccd.med","slr.med", "avmsl.med","formation")]
+colnames(df12)<-c("elevation","erosion","gravity","ldi","sla","slope","tidecm","tx90","ccd","slr","avmsl","formation")
+
+dfList<-list(df1,df2,df3,df4,df5,df6,df7,df8,df9,df10,df11,df12)
 
 predict.ndvi<-lapply(dfList, function(x) predict(regr.mod.best, newdata = x, OOB=FALSE, type = "response"))
 ndvi.partial.exposure<- lapply(predict.ndvi, function(x) decreasing(x$data$response))
 
 predict.vci<-lapply(dfList, function(x) predict(regr.mod.best.v, newdata = x, OOB=FALSE, type = "response"))
-                    
 vci.partial.exposure<- lapply(predict.vci, function(x) decreasing(x$data$response))
 
 ##convert lists to dataframe - ndvi
 part.exp.df.ndvi <- as.data.frame(t(data.frame(matrix(unlist(ndvi.partial.exposure), nrow=length(ndvi.partial.exposure), byrow=T))))
-colnames(part.exp.df.ndvi)<- c("elevation","erosion","gravity","ldi","sla","slope","tidecm","tx90","ccd","slr","avmsl")
+colnames(part.exp.df.ndvi)<- c("elevation","erosion","gravity","ldi","sla","slope","tidecm","tx90","ccd","slr","avmsl","formation")
 exposure.ndvi<-cbind(all.data[,16],part.exp.df.ndvi, exposure[,1])
 colnames(exposure.ndvi)[1]<-"sector"
-colnames(exposure.ndvi)[13]<-"e.ndvi"
+colnames(exposure.ndvi)[14]<-"e.ndvi"
 #all.exposure$exposure_index_fsum<-((all.exposure$e.ndvi+all.exposure$e.vci)-(all.exposure$e.vci*all.exposure$e.ndvi))
 #all.exposure$exposure_index_ave<-(all.exposure$e.ndvi+all.exposure$e.vci)/2
 
 ##convert lists to dataframe - vci
 
 part.exp.df.vci <- as.data.frame(t(data.frame(matrix(unlist(vci.partial.exposure), nrow=length(vci.partial.exposure), byrow=T))))
-colnames(part.exp.df.vci)<- c("elevation","erosion","gravity","ldi","sla","slope","tidecm","tx90","ccd","slr","avmsl")
+colnames(part.exp.df.vci)<- c("elevation","erosion","gravity","ldi","sla","slope","tidecm","tx90","ccd","slr","avmsl","formation")
 exposure.vci<-cbind(all.data[,16],part.exp.df.vci, exposure[,2])
 colnames(exposure.vci)[1]<-"sector"
-colnames(exposure.vci)[13]<-"e.vci"
+colnames(exposure.vci)[14]<-"e.vci"
 
 exposure.ndvi.1<-exposure.ndvi[,-1] #1
 exposure.ndvi.1$slr <- 1-predict.ndvi[[10]]$data$response
@@ -307,7 +356,7 @@ exposure.vci.1<-exposure.vci[,-1] #2
 exposure.vci.1$slr <- 1-predict.vci[[10]]$data$response
 
 exposure_product_sum<-((exposure.vci.1+exposure.ndvi.1)-(exposure.vci.1*exposure.ndvi.1))#3
-#exposure_weighted_sum<-((0.47*exposure.vci.1)+(0.61*exposure.ndvi.1))/2
+exposure_weighted_sum<-((0.47*exposure.vci.1)+(0.61*exposure.ndvi.1))/2
 
 
 ndvi.vimp<-data.frame(vimp)*100
@@ -334,21 +383,21 @@ exposure.agg.median = aggregate(exposure_product_sum,by = list(all.data$layer),F
 rownames(exposure.agg.median)<-rn
 exposure.agg.2<-exposure.agg.median[,-c(1)]
 exposure.agg.2<-as.matrix(exposure.agg.2)
-colnames(exposure.agg.2)<-c("elevation", "erosion","human pressure","land dev.intensity","sea level anomaly","slope","tidal range","heat waves","drought","sea level rate","mean sea level","e.vci")      
+colnames(exposure.agg.2)<-c("elevation", "erosion","human pressure","land dev.intensity","sea level anomaly","slope","tidal range","heat waves","drought","sea level rate","mean sea level","formation","e.vci")      
 
 #ndvi
 exposure.median.ndvi = aggregate(exposure.ndvi.1,by = list(all.data$layer),FUN = median)
 rownames(exposure.median.ndvi)<-rn
 exposure.ndvi.2<-exposure.median.ndvi[,-c(1)]
 exposure.ndvi.2<-as.matrix(exposure.ndvi.2)
-colnames(exposure.ndvi.2)<-c("elevation", "erosion","human pressure","land dev.intensity","sea level anomaly","slope","tidal range","heat waves","drought","sea level rate","mean sea level","e.ndvi")      
+colnames(exposure.ndvi.2)<-c("elevation", "erosion","human pressure","land dev.intensity","sea level anomaly","slope","tidal range","heat waves","drought","sea level rate","mean sea level","formation","e.ndvi")      
 
 #vci
 exposure.median.vci = aggregate(exposure.vci.1,by = list(all.data$layer),FUN = median)
 rownames(exposure.median.vci)<-rn
 exposure.vci.2<-exposure.median.vci[,-c(1)]
 exposure.vci.2<-as.matrix(exposure.vci.2)
-colnames(exposure.vci.2)<-c("elevation", "erosion","human pressure","land dev. intensity","sea level anomaly","slope","tidal range","heat waves","drought","sea level rate","mean sea level","e.vci")      
+colnames(exposure.vci.2)<-c("elevation", "erosion","human pressure","land dev. intensity","sea level anomaly","slope","tidal range","heat waves","drought","sea level rate","mean sea level","formation","e.vci")      
 
 #library(devtools)
 #install_github("jokergoo/ComplexHeatmap")
@@ -369,17 +418,17 @@ ndvi.plot<-Heatmap(exposure.ndvi.2[,c(1:11)], show_column_dend=FALSE,name = "mat
 vci.plot<-Heatmap(exposure.vci.2[,c(1:11)], show_column_dend=FALSE,name = "mat", column_title = "(C) VCI based exposure",column_title_gp = gpar(fontsize = 10,fontface="bold"),row_names_gp = gpar(fontsize =8),border = FALSE,col = col_fun,row_gap = unit(2, "mm"),column_names_gp = gpar( fontsize = 9),cluster_column_slices = FALSE,heatmap_legend_param = list(col_fun = col_fun, title = "exposure index", legend_height = unit(8, "cm"),title_position = "lefttop-rot"),bottom_annotation = HeatmapAnnotation(vimp = anno_barplot(data.frame(vci.vimp$vimp*100)),show_annotation_name=c(bar=FALSE),annotation_name_side = "left"),right_annotation = rowAnnotation(Exposure_vci = exposure.vci.2[,12],col = list(Exposure_vci = col_fun),annotation_name_gp=gpar(fontsize=8),show_legend = c("Exposure_vci" = FALSE)))
 
 #Final2
-overall.plot<-Heatmap(exposure.agg.2[,c(1:11)], show_column_dend=FALSE,name = "mat",column_title = "(A) Cummulative exposure",column_title_gp = gpar(fontsize = 8,fontface="bold"), row_names_gp = gpar(fontsize = 10),border = FALSE,col = col_fun,row_gap = unit(2, "mm"),  row_km = 4, row_km_repeats = 1000, row_title=NULL,column_names_gp = gpar( fontsize = 10),cluster_column_slices = FALSE, heatmap_legend_param = list(col_fun = col_fun, title = NULL, direction="horizontal",legend_width=unit(10, "cm"),title_position = "lefttop"),bottom_annotation = HeatmapAnnotation(vimp = anno_barplot(data.frame(cumm.vimp$vimp)),annotation_name_side = "left"),right_annotation = rowAnnotation(Exposure_overall = exposure.agg.2[,12],col = list(Exposure_overall = col_fun),annotation_name_gp=gpar(fontsize=10),show_legend = c("Exposure_overall" = FALSE)),left_annotation = rowAnnotation(foo = anno_block(gp = gpar(fill = "grey"),labels = c("group1", "group2", "group3", "group4"),  labels_gp = gpar(col = "black", fontsize = 10))))
-ndvi.plot<-Heatmap(exposure.ndvi.2[,c(1:11)], show_column_dend=FALSE,name = "mat",column_title = "(B) NDVI based exposure",column_title_gp = gpar(fontsize = 8,fontface="bold"), row_names_gp = gpar(fontsize = 10),border = FALSE,col = col_fun,row_gap = unit(2, "mm"),column_names_gp = gpar( fontsize = 10),cluster_column_slices = FALSE,heatmap_legend_param = list(col_fun = col_fun, title = NULL, direction="horizontal",legend_width=unit(10, "cm"),title_position = "lefttop"),bottom_annotation = HeatmapAnnotation(vimp = anno_barplot(data.frame(ndvi.vimp$vimp)),show_annotation_name=c(bar=FALSE),annotation_name_side = "left"),right_annotation = rowAnnotation(Exposure_ndvi = exposure.ndvi.2[,12],col = list(Exposure_ndvi = col_fun),annotation_name_gp=gpar(fontsize=10),show_legend = c("Exposure_ndvi" = FALSE)))
-vci.plot<-Heatmap(exposure.vci.2[,c(1:11)], show_column_dend=FALSE,name = "mat",column_title = "(C) VCI based exposure",column_title_gp = gpar(fontsize = 8,fontface="bold"),row_names_gp = gpar(fontsize =10),border = FALSE,col = col_fun,row_gap = unit(2, "mm"),column_names_gp = gpar( fontsize = 10),cluster_column_slices = FALSE,heatmap_legend_param = list(col_fun = col_fun, title = NULL, direction="horizontal",legend_width=unit(10, "cm"),title_position = "lefttop"),bottom_annotation = HeatmapAnnotation(vimp = anno_barplot(data.frame(vci.vimp$vimp)),show_annotation_name=c(bar=FALSE),annotation_name_side = "left"),right_annotation = rowAnnotation(Exposure_vci = exposure.vci.2[,12],col = list(Exposure_vci = col_fun),annotation_name_gp=gpar(fontsize=10),show_legend = c("Exposure_vci" = FALSE)))
+overall.plot<-Heatmap(exposure.agg.2[,c(1:12)], show_column_dend=FALSE,name = "mat",column_title = "(A) Cummulative exposure",column_title_gp = gpar(fontsize = 8,fontface="bold"), row_names_gp = gpar(fontsize = 10),border = FALSE,col = col_fun,row_gap = unit(2, "mm"),  row_km = 4, row_km_repeats = 1000, row_title=NULL,column_names_gp = gpar( fontsize = 10),cluster_column_slices = FALSE, heatmap_legend_param = list(col_fun = col_fun, title = NULL, direction="horizontal",legend_width=unit(10, "cm"),title_position = "lefttop"),bottom_annotation = HeatmapAnnotation(vimp = anno_barplot(data.frame(cumm.vimp$vimp)),annotation_name_side = "left"),right_annotation = rowAnnotation(Exposure_overall = exposure.agg.2[,13],col = list(Exposure_overall = col_fun),annotation_name_gp=gpar(fontsize=10),show_legend = c("Exposure_overall" = FALSE)),left_annotation = rowAnnotation(foo = anno_block(gp = gpar(fill = "grey"),labels = c("group1", "group2", "group3", "group4"),  labels_gp = gpar(col = "black", fontsize = 10))))
+ndvi.plot<-Heatmap(exposure.ndvi.2[,c(1:12)], show_column_dend=FALSE,name = "mat",column_title = "(B) NDVI based exposure",column_title_gp = gpar(fontsize = 8,fontface="bold"), row_names_gp = gpar(fontsize = 10),border = FALSE,col = col_fun,row_gap = unit(2, "mm"),column_names_gp = gpar( fontsize = 10),cluster_column_slices = FALSE,heatmap_legend_param = list(col_fun = col_fun, title = NULL, direction="horizontal",legend_width=unit(10, "cm"),title_position = "lefttop"),bottom_annotation = HeatmapAnnotation(vimp = anno_barplot(data.frame(ndvi.vimp$vimp)),show_annotation_name=c(bar=FALSE),annotation_name_side = "left"),right_annotation = rowAnnotation(Exposure_ndvi = exposure.ndvi.2[,13],col = list(Exposure_ndvi = col_fun),annotation_name_gp=gpar(fontsize=10),show_legend = c("Exposure_ndvi" = FALSE)))
+vci.plot<-Heatmap(exposure.vci.2[,c(1:12)], show_column_dend=FALSE,name = "mat",column_title = "(C) VCI based exposure",column_title_gp = gpar(fontsize = 8,fontface="bold"),row_names_gp = gpar(fontsize =10),border = FALSE,col = col_fun,row_gap = unit(2, "mm"),column_names_gp = gpar( fontsize = 10),cluster_column_slices = FALSE,heatmap_legend_param = list(col_fun = col_fun, title = NULL, direction="horizontal",legend_width=unit(10, "cm"),title_position = "lefttop"),bottom_annotation = HeatmapAnnotation(vimp = anno_barplot(data.frame(vci.vimp$vimp)),show_annotation_name=c(bar=FALSE),annotation_name_side = "left"),right_annotation = rowAnnotation(Exposure_vci = exposure.vci.2[,13],col = list(Exposure_vci = col_fun),annotation_name_gp=gpar(fontsize=10),show_legend = c("Exposure_vci" = FALSE)))
 
 
-pdf("figure2_mangroveMs.pdf") 
+pdf("figure2_mangroveMs_revision.pdf") 
 ht_list = overall.plot+ndvi.plot + vci.plot
 draw(ht_list,heatmap_legend_side="bottom", ht_gap = unit(5, "mm"))
 dev.off()
 
-tiff("Figure2_mangroveMs.tiff", units="in", width=10, height=8, res=300)
+tiff("Figure2_mangroveMs_revision.tiff", units="in", width=10, height=8, res=300)
 ht_list = overall.plot+ndvi.plot + vci.plot
 draw(ht_list,heatmap_legend_side="bottom", ht_gap = unit(5, "mm"))
 dev.off()
@@ -397,7 +446,13 @@ load("rforestTune.all.RData")
 #plotPartialDependence(pdp.all)
       
 #####Run above for VCI
-vci.crf.1<-cforest(vci ~elevation+erosion+gravity+ldi+sla +slope + tidecm+tx90+ccd+slr+avmsl,data=train,controls=cforest_unbiased(ntree=78, mtry=))
+num_cores=12
+vci.crf.1<-partykit::cforest(vci ~elevation+erosion+gravity+ldi+sla +slope + tidecm+tx90+ccd+slr+avmsl+formation,data=all.data.vci,cores=num_cores,ntree=89, mtry=3)
+ndvi.crf.1<-partykit::cforest(vci ~elevation+erosion+gravity+ldi+sla +slope + tidecm+tx90+ccd+slr+avmsl+formation,data=all.data.vci,cores=num_cores,ntree=89, mtry=3)
+
+system.time(varimpvci <- varimp(vci.crf.1,conditional=TRUE, OOB=TRUE))
+
+
 
 library(doParallel)
 cl<-makeCluster(12)
@@ -408,17 +463,6 @@ pvci.3 <- partial(vci.crf.1, pred.var = c("tidecm", "tx90","ccd"), chull = TRUE,
 pvci.4 <- partial(vci.crf.1, pred.var = c("slr", "avmsl"), chull = TRUE, parallel = TRUE)
 stopCluster()
 
-##revision
-coordinates(all.data)<-~x+y
-pts<-st_as_sf(all.data)
-typol<-readOGR(dsn='/Volumes/Data-1/Projects/CCVA/Mangrove/Sectors/',"mangrovewithtypology")
-polys<-st_as_sf(typol)
-crs(all.data)<-crs(polys)
-all.data_rev <- as.data.frame(st_join(pts, polys, join = st_nearest_feature))
-
-all.data_rev1<-all.data_rev[,c(2:36,44)]
-
-c<-aggregate(erosion ~ FIN_TYP,a,mean)
 
 
 
