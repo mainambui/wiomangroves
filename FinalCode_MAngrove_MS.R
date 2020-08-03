@@ -1,7 +1,7 @@
 #Random forest methods
 rm(list=ls())
 library(randomForest)
-#library(party)
+library(party)
 library(dplyr)
 library(pdp)
 library(vip)
@@ -17,8 +17,11 @@ library(partykit)
 library(parallel)
 library(usdm)
 
-setwd('/Volumes/Data/Projects/CCVA/Mangrove/Results_FINAL/Dataset_Final/Unnormalised/')
+
+#setwd("D:/mainambui/mangrove_ccva/")
+setwd('/Volumes/Data/Projects/CCVA/Mangrove/Results_FINAL/Dataset_Final/Unnormalised/') 
 load("rforestTune.all_gcb_rev1.RData")
+#rforestTune.all_gcb_rev1.RData
 #coordinates(all.data)<-~x+y
 #typol<-readOGR(dsn='/Volumes/Data/Projects/CCVA/Mangrove/Sectors/',"mangrovewithtypology")
 #crs(all.data)<-crs(typol)
@@ -47,9 +50,9 @@ train <- all.data[train.index[,1],]
 test<-all.data[ train.index[,2],]
 #PredictVar<-all.data[,c(5:14,22,24,25)]
 PredictVar<-all.data[,c(5:14,22,24,25,39)]#new
-predictors<-PredictVar[,-c(10,12)]
-all.data.vci<-cbind(all.data[,"vci"],predictors[,-c(7,12)])
-all.data.ndvi<-cbind(all.data[,"ndvi"],predictors[,-c(7,12)])
+predictors<-PredictVar[,-c(7,8,10,12,14)]
+all.data.vci<-cbind(all.data[,"vci"],predictors)
+all.data.ndvi<-cbind(all.data[,"ndvi"],predictors)
 colnames(all.data.ndvi)[1]<-"ndvi"
 colnames(all.data.vci)[1]<-"vci"
 
@@ -65,8 +68,8 @@ regr.mod.v = train(regr.lrn.v, regr.task.v, subset = train.index[,1])
 regr.mod
 regr.mod.v
 
-task.pred = predict(regr.mod, task = regr.task, subset = train.index[,2])
-task.pred.v = predict(regr.mod.v, task = regr.task.v, subset = train.index[,2])
+task.pred = predict(regr.mod, task = regr.task, subset = train.index[,2], cores=10)
+task.pred.v = predict(regr.mod.v, task = regr.task.v, subset = train.index[,2],cores=10)
 
 performance(task.pred, measures=list(mse, rsq))
 #mse         rsq 
@@ -90,7 +93,7 @@ getParamSet(regr.lrn.v)
 library(parallel)
 library(parallelMap)
  # Initialize paralelllization
-parallelStartSocket(cpus = 24)
+parallelStartSocket(cpus = 18)
 
 ps = makeParamSet(
 makeIntegerParam("ntree", lower = 1, upper = 100),
@@ -107,7 +110,7 @@ plot.type = "heatmap")
 
 tune.cforest$x
 $ntree
-[1] 89
+[1] 100
 
 $mtry
 [1] 3
@@ -117,10 +120,10 @@ plotHyperParsEffect(generateHyperParsEffectData(tune.cforest.v), x = "ntree", y 
 tune.cforest.v$x
 > tune.cforest.v$x
 $ntree
-[1] 100
+[1] 78
 
 $mtry
-[1] 4
+[1] 3
 
 parallelStop()
 
@@ -132,14 +135,16 @@ regr.lrn.best.v = setHyperPars(makeLearner("regr.cforest"), ntree = tune.cforest
 regr.mod.best = train(regr.lrn.best, regr.task, subset = train.index[,1])
 regr.mod.best.v = train(regr.lrn.best.v, regr.task.v, subset = train.index[,1])
 
-vimp = unlist(getFeatureImportance(regr.mod.best,OOB=TRUE, conditional = TRUE)$res)
-vimp.v = unlist(getFeatureImportance(regr.mod.best.v,OOB=TRUE, conditional = TRUE)$res)
+save.image("rforestTune.all_gcb_rev1.RData")
+
+vimp = unlist(getFeatureImportance(regr.mod.best, conditional = TRUE)$res)
+vimp.v = unlist(getFeatureImportance(regr.mod.best.v,conditional = TRUE)$res)
 
 system.time(trial<-getFeatureImportance(regr.mod.best,conditional=TRUE,OOB=TRUE, cores=12))
 
-#remotes::install_github("mlr3learners/mlr3learners.partykit")
+remotes::install_github("mlr3learners/mlr3learners.partykit")
 
-barplot(vimp)
+1barplot(vimp)
 barplot(vimp.v)
 
 
@@ -413,12 +418,12 @@ o = seriate(max(exposure.agg.2) - exposure.agg.2, method = "BEA_TSP")
 ##final plots
 #Heatmap(exposure.agg.2[,c(1:11)], show_column_dend=FALSE,name = "mat", row_names_gp = gpar(fontsize = 9),border = FALSE,col = col_fun,row_gap = unit(2, "mm"),   row_km = 4, row_km_repeats = 1000, column_title_gp = gpar(font = 7),column_names_gp = gpar( fontsize = 11),cluster_column_slices = FALSE,heatmap_legend_param = list(col_fun = col_fun, title = "exposure index", legend_height = unit(8, "cm"),title_position = "lefttop-rot"),bottom_annotation = HeatmapAnnotation(vimp = anno_barplot(data.frame(ndvi.vimp$vimp*100)),annotation_name_side = "left"),right_annotation = rowAnnotation(Exposure = exposure.agg.2[,12],col = list(Exposure = col_fun),show_legend = c("Exposure" = FALSE)),left_annotation = rowAnnotation(foo = anno_block(gp = gpar(fill = 1:4),labels = c("group1", "group2", "group3", "group4"),  labels_gp = gpar(col = "white", fontsize = 10))))
 #Final1
-overall.plot<-Heatmap(exposure.agg.2[,c(1:11)], show_column_dend=FALSE,name = "mat",column_title = "(A) Cummulative exposure",column_title_gp = gpar(fontsize = 10,fontface="bold"), row_names_gp = gpar(fontsize = 8),border = FALSE,col = col_fun,row_gap = unit(2, "mm"),  row_km = 4, row_km_repeats = 1000, row_title=NULL,column_names_gp = gpar( fontsize = 9),cluster_column_slices = FALSE, heatmap_legend_param = list(col_fun = col_fun, title = "exposure index", direction="vertical",legend_height = unit(10, "cm"),title_position = "lefttop-rot"),bottom_annotation = HeatmapAnnotation(vimp = anno_barplot(data.frame(cumm.vimp$vimp*100)),annotation_name_side = "left",right_annotation = rowAnnotation(Exposure_overall = exposure.agg.2[,12],col = list(Exposure_overall = col_fun),annotation_name_gp=gpar(fontsize=8),show_legend = c("Exposure_overall" = FALSE)),left_annotation = rowAnnotation(foo = anno_block(gp = gpar(fill = "grey"),labels = c("group1", "group2", "group3", "group4"),  labels_gp = gpar(col = "black", fontsize = 10))))
+overall.plot<-Heatmap(exposure.agg.2[,c(1:11)], show_column_dend=FALSE,name = "mat",column_title = "(A) Cumulative exposure",column_title_gp = gpar(fontsize = 10,fontface="bold"), row_names_gp = gpar(fontsize = 8),border = FALSE,col = col_fun,row_gap = unit(2, "mm"),  row_km = 4, row_km_repeats = 1000, row_title=NULL,column_names_gp = gpar( fontsize = 9),cluster_column_slices = FALSE, heatmap_legend_param = list(col_fun = col_fun, title = "exposure index", direction="vertical",legend_height = unit(10, "cm"),title_position = "lefttop-rot"),bottom_annotation = HeatmapAnnotation(vimp = anno_barplot(data.frame(cumm.vimp$vimp*100)),annotation_name_side = "left",right_annotation = rowAnnotation(Exposure_overall = exposure.agg.2[,12],col = list(Exposure_overall = col_fun),annotation_name_gp=gpar(fontsize=8),show_legend = c("Exposure_overall" = FALSE)),left_annotation = rowAnnotation(foo = anno_block(gp = gpar(fill = "grey"),labels = c("group1", "group2", "group3", "group4"),  labels_gp = gpar(col = "black", fontsize = 10))))
 ndvi.plot<-Heatmap(exposure.ndvi.2[,c(1:11)], show_column_dend=FALSE,name = "mat",column_title = "(B) NDVI based exposure",column_title_gp = gpar(fontsize = 10,fontface="bold"), row_names_gp = gpar(fontsize = 8),border = FALSE,col = col_fun,row_gap = unit(2, "mm"),column_names_gp = gpar( fontsize = 9),cluster_column_slices = FALSE,heatmap_legend_param = list(col_fun = col_fun, title = "exposure index", legend_height = unit(8, "cm"),title_position = "lefttop-rot"),bottom_annotation = HeatmapAnnotation(vimp = anno_barplot(data.frame(ndvi.vimp$vimp*100)),show_annotation_name=c(bar=FALSE),annotation_name_side = "left"),right_annotation = rowAnnotation(Exposure_ndvi = exposure.ndvi.2[,12],col = list(Exposure_ndvi = col_fun),annotation_name_gp=gpar(fontsize=8),show_legend = c("Exposure_ndvi" = FALSE)))
 vci.plot<-Heatmap(exposure.vci.2[,c(1:11)], show_column_dend=FALSE,name = "mat", column_title = "(C) VCI based exposure",column_title_gp = gpar(fontsize = 10,fontface="bold"),row_names_gp = gpar(fontsize =8),border = FALSE,col = col_fun,row_gap = unit(2, "mm"),column_names_gp = gpar( fontsize = 9),cluster_column_slices = FALSE,heatmap_legend_param = list(col_fun = col_fun, title = "exposure index", legend_height = unit(8, "cm"),title_position = "lefttop-rot"),bottom_annotation = HeatmapAnnotation(vimp = anno_barplot(data.frame(vci.vimp$vimp*100)),show_annotation_name=c(bar=FALSE),annotation_name_side = "left"),right_annotation = rowAnnotation(Exposure_vci = exposure.vci.2[,12],col = list(Exposure_vci = col_fun),annotation_name_gp=gpar(fontsize=8),show_legend = c("Exposure_vci" = FALSE)))
 
 #Final2
-overall.plot<-Heatmap(exposure.agg.2[,c(1:12)], show_column_dend=FALSE,name = "mat",column_title = "(A) Cummulative exposure",column_title_gp = gpar(fontsize = 8,fontface="bold"), row_names_gp = gpar(fontsize = 10),border = FALSE,col = col_fun,row_gap = unit(2, "mm"),  row_km = 4, row_km_repeats = 1000, row_title=NULL,column_names_gp = gpar( fontsize = 10),cluster_column_slices = FALSE, heatmap_legend_param = list(col_fun = col_fun, title = NULL, direction="horizontal",legend_width=unit(10, "cm"),title_position = "lefttop"),bottom_annotation = HeatmapAnnotation(vimp = anno_barplot(data.frame(cumm.vimp$vimp)),annotation_name_side = "left"),right_annotation = rowAnnotation(Exposure_overall = exposure.agg.2[,13],col = list(Exposure_overall = col_fun),annotation_name_gp=gpar(fontsize=10),show_legend = c("Exposure_overall" = FALSE)),left_annotation = rowAnnotation(foo = anno_block(gp = gpar(fill = "grey"),labels = c("group1", "group2", "group3", "group4"),  labels_gp = gpar(col = "black", fontsize = 10))))
+overall.plot<-Heatmap(exposure.agg.2[,c(1:12)], show_column_dend=FALSE,name = "mat",column_title = "(A) Cumulative exposure",column_title_gp = gpar(fontsize = 8,fontface="bold"), row_names_gp = gpar(fontsize = 10),border = FALSE,col = col_fun,row_gap = unit(2, "mm"),  row_km = 4, row_km_repeats = 1000, row_title=NULL,column_names_gp = gpar( fontsize = 10),cluster_column_slices = FALSE, heatmap_legend_param = list(col_fun = col_fun, title = NULL, direction="horizontal",legend_width=unit(10, "cm"),title_position = "lefttop"),bottom_annotation = HeatmapAnnotation(vimp = anno_barplot(data.frame(cumm.vimp$vimp)),annotation_name_side = "left"),right_annotation = rowAnnotation(Exposure_overall = exposure.agg.2[,13],col = list(Exposure_overall = col_fun),annotation_name_gp=gpar(fontsize=10),show_legend = c("Exposure_overall" = FALSE)),left_annotation = rowAnnotation(foo = anno_block(gp = gpar(fill = "grey"),labels = c("group1", "group2", "group3", "group4"),  labels_gp = gpar(col = "black", fontsize = 10))))
 ndvi.plot<-Heatmap(exposure.ndvi.2[,c(1:12)], show_column_dend=FALSE,name = "mat",column_title = "(B) NDVI based exposure",column_title_gp = gpar(fontsize = 8,fontface="bold"), row_names_gp = gpar(fontsize = 10),border = FALSE,col = col_fun,row_gap = unit(2, "mm"),column_names_gp = gpar( fontsize = 10),cluster_column_slices = FALSE,heatmap_legend_param = list(col_fun = col_fun, title = NULL, direction="horizontal",legend_width=unit(10, "cm"),title_position = "lefttop"),bottom_annotation = HeatmapAnnotation(vimp = anno_barplot(data.frame(ndvi.vimp$vimp)),show_annotation_name=c(bar=FALSE),annotation_name_side = "left"),right_annotation = rowAnnotation(Exposure_ndvi = exposure.ndvi.2[,13],col = list(Exposure_ndvi = col_fun),annotation_name_gp=gpar(fontsize=10),show_legend = c("Exposure_ndvi" = FALSE)))
 vci.plot<-Heatmap(exposure.vci.2[,c(1:12)], show_column_dend=FALSE,name = "mat",column_title = "(C) VCI based exposure",column_title_gp = gpar(fontsize = 8,fontface="bold"),row_names_gp = gpar(fontsize =10),border = FALSE,col = col_fun,row_gap = unit(2, "mm"),column_names_gp = gpar( fontsize = 10),cluster_column_slices = FALSE,heatmap_legend_param = list(col_fun = col_fun, title = NULL, direction="horizontal",legend_width=unit(10, "cm"),title_position = "lefttop"),bottom_annotation = HeatmapAnnotation(vimp = anno_barplot(data.frame(vci.vimp$vimp)),show_annotation_name=c(bar=FALSE),annotation_name_side = "left"),right_annotation = rowAnnotation(Exposure_vci = exposure.vci.2[,13],col = list(Exposure_vci = col_fun),annotation_name_gp=gpar(fontsize=10),show_legend = c("Exposure_vci" = FALSE)))
 
@@ -447,10 +452,14 @@ load("rforestTune.all.RData")
       
 #####Run above for VCI
 num_cores=12
-vci.crf.1<-partykit::cforest(vci ~elevation+erosion+gravity+ldi+sla +slope + tidecm+tx90+ccd+slr+avmsl+formation,data=all.data.vci,cores=num_cores,ntree=89, mtry=3)
-ndvi.crf.1<-partykit::cforest(vci ~elevation+erosion+gravity+ldi+sla +slope + tidecm+tx90+ccd+slr+avmsl+formation,data=all.data.vci,cores=num_cores,ntree=89, mtry=3)
+#vci.crf.1<-partykit::cforest(vci ~elevation+erosion+gravity+ldi+sla +slope + tidecm+tx90+ccd+slr+avmsl+formation,data=all.data.vci,cores=num_cores,ntree=89, mtry=3)
+#ndvi.crf.1<-partykit::cforest(vci ~elevation+erosion+gravity+ldi+sla +slope + tidecm+tx90+ccd+slr+avmsl+formation,data=all.data.vci,cores=num_cores,ntree=89, mtry=3)
 
-system.time(varimpvci <- varimp(vci.crf.1,conditional=TRUE, OOB=TRUE))
+vci.crf.1<-partykit::cforest(vci ~elevation+erosion+gravity+ldi+sla +slope + ccd+slr+avmsl,data=all.data.vci,cores=num_cores,ntree=89, mtry=3)
+ndvi.crf.1<-partykit::cforest(ndvi ~elevation+erosion+gravity+ldi+sla +slope +ccd+slr+avmsl,data=all.data.ndvi,cores=num_cores,ntree=89, mtry=3)
+
+
+system.time(varimpvci <- varimp(ndvi.crf.1,conditional=TRUE, ncores=12))
 
 
 
