@@ -123,7 +123,7 @@ $ntree
 [1] 78
 
 $mtry
-[1] 3
+[1] 8
 
 parallelStop()
 
@@ -137,17 +137,15 @@ regr.mod.best.v = train(regr.lrn.best.v, regr.task.v, subset = train.index[,1])
 
 save.image("rforestTune.all_gcb_rev1.RData")
 
-vimp = unlist(getFeatureImportance(regr.mod.best, conditional = TRUE)$res)
-vimp.v = unlist(getFeatureImportance(regr.mod.best.v,conditional = TRUE)$res)
+vimp = unlist(getFeatureImportance(regr.mod.best)$res)
+vimp.v = unlist(getFeatureImportance(regr.mod.best.v)$res)
 
-system.time(trial<-getFeatureImportance(regr.mod.best,conditional=TRUE,OOB=TRUE, cores=12))
+#system.time(trial<-getFeatureImportance(regr.mod.best,conditional=TRUE,OOB=TRUE, cores=12))
 
-remotes::install_github("mlr3learners/mlr3learners.partykit")
+#remotes::install_github("mlr3learners/mlr3learners.partykit")
 
-1barplot(vimp)
+barplot(vimp*100)
 barplot(vimp.v)
-
-
 
 #save.image('revision.anal.RData')
 #load('revision.anal.RData')
@@ -157,7 +155,7 @@ pdp.all = generatePartialDependenceData(regr.mod.best, regr.task, individual = F
 pdp.all.vci = generatePartialDependenceData(regr.mod.best.v, regr.task.v, individual = F, n = c(10, 25000))
 #plotPartialDependence(pdp.all.vci)
 
-colnames(pdp.all$data)<-c('response',"elevation", "erosion","human pressure","land dev. intensity","sea level anomaly","slope","tidal range","heat waves","drought","sea level rate","mean sea level")      
+colnames(pdp.all$data)<-c('response',"elevation", "erosion","human pressure","land dev. intensity","sea level anomaly","slope","drought","sea level rate","mean sea level")      
 pdp.ndvi<-melt(pdp.all$data,id.vars = "response")
 
 pdp.ndvi$indicator<-"ndvi"
@@ -212,9 +210,9 @@ dev.off()
 #prediction data
 predictors.future<-predictors
 predictors.future$avmsl<-all.data$wcs.msl
-predictors.future$slr<-all.data$wcs.trend
+#predictors.future$slr<-all.data$wcs.trend
 predictors.future$ccd<-all.data$cdd.rcp85
-predictors.future$tx90<-all.data$tx9085
+#predictors.future$tx90<-all.data$tx9085
 
 summary(all.data[,c('avmsl','wcs.msl','slr','wcs.trend','ccd','cdd.rcp85','tx90','tx9085')])
 
@@ -263,14 +261,11 @@ ndvi.x <- rasterize(exposure.xy[, 1:2], r, exposure.xy[,3], fun=mean)
 vci.x <- rasterize(exposure.xy[, 1:2], r, exposure.xy[,4], fun=mean)
 exposure.stack<-stack(ndvi.x,vci.x)
 
-if (require(ncdf4)) {	
-  rnc <- writeRaster(exposure.stack, filename='exposure.stack.nc', format="CDF", overwrite=TRUE) 
-  rm(rnc)
-}
+writeRaster(exposure.stack, filename='exposure.stack.nc', format="CDF", overwrite=TRUE) 
+
 rm(exposure.stack)
 
-
-save.image("rforestTune.all_gcb_rev1.RData")
+save.image("rforestTune.all_gcb_rev1.RData")#August4
 
 
 ##partial dependence and exposure
@@ -451,15 +446,17 @@ load("rforestTune.all.RData")
 #plotPartialDependence(pdp.all)
       
 #####Run above for VCI
-num_cores=12
+num_cores=18
 #vci.crf.1<-partykit::cforest(vci ~elevation+erosion+gravity+ldi+sla +slope + tidecm+tx90+ccd+slr+avmsl+formation,data=all.data.vci,cores=num_cores,ntree=89, mtry=3)
 #ndvi.crf.1<-partykit::cforest(vci ~elevation+erosion+gravity+ldi+sla +slope + tidecm+tx90+ccd+slr+avmsl+formation,data=all.data.vci,cores=num_cores,ntree=89, mtry=3)
 
+train1 <- all.data.ndvi[train.index[,1],]
+ndvi.crf.1<-partykit::cforest(ndvi ~elevation+erosion+gravity+ldi+sla +slope +ccd+slr+avmsl,data=train1,cores=num_cores,ntree=100, mtry=3)
 vci.crf.1<-partykit::cforest(vci ~elevation+erosion+gravity+ldi+sla +slope + ccd+slr+avmsl,data=all.data.vci,cores=num_cores,ntree=89, mtry=3)
-ndvi.crf.1<-partykit::cforest(ndvi ~elevation+erosion+gravity+ldi+sla +slope +ccd+slr+avmsl,data=all.data.ndvi,cores=num_cores,ntree=89, mtry=3)
 
+#control = cforest_unbiased(ntree = 50))
 
-system.time(varimpvci <- varimp(ndvi.crf.1,conditional=TRUE, ncores=12))
+system.time(varimpvci <- varimp(ndvi.crf.1,conditional=TRUE, ncores=18))
 
 
 
