@@ -409,7 +409,7 @@ write.csv(data.std1,'data.std.csv')
 #       colnames(dat)<-c('x','y','vci','elevation','erosion','gravity','ldi','sla','slope','tidecm','tx90','ccd','inundation')
 #       write.csv(dat,"raw.data.csv")
 
-#       sector<-readOGR(dsn='/Users/maina/Downloads/Archive','wio_sectors')
+#sector<-readOGR(dsn='/Users/maina/Downloads/Archive','wio_sectors')
 #       
 #       coordinates(dat)<-~x+y
 #       sect.data <- data.frame(sector)
