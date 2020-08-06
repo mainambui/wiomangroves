@@ -13,7 +13,7 @@ library(data.table)
 library(QCA)
 library(rgdal)
 library(sf)
-library(partykit)
+#library(partykit)
 library(parallel)
 library(usdm)
 
@@ -44,6 +44,7 @@ load("rforestTune.all_gcb_rev1.RData")
 #all.data<-all.data[,2:40]
 #write.csv(all.data,"all.data.csv")
 #save.img("rforestTune.all_gcb_rev1.RData")
+up
 
 #train.index <- createDataPartition(c(all.data$layer), times=2, p = .30, list = FALSE)
 train <- all.data[train.index[,1],]
@@ -210,6 +211,7 @@ dev.off()
 #prediction data
 predictors.future<-predictors
 predictors.future$avmsl<-all.data$wcs.msl
+predictors.future$slr<-all.data$slr
 #predictors.future$slr<-all.data$wcs.trend
 predictors.future$ccd<-all.data$cdd.rcp85
 #predictors.future$tx90<-all.data$tx9085
@@ -217,8 +219,10 @@ predictors.future$ccd<-all.data$cdd.rcp85
 summary(all.data[,c('avmsl','wcs.msl','slr','wcs.trend','ccd','cdd.rcp85','tx90','tx9085')])
 
 ##
-future.ndvi<- predict(regr.mod.best, newdata = predictors.future, OOB=FALSE, type = "response")
-future.vci<- predict(regr.mod.best.v, newdata = predictors.future, OOB=FALSE, type = "response")
+future.ndvi<- predict(regr.mod.best, newdata = predictors.future, OOB=FALSE, type = "response", cores=24)
+future.vci<- predict(regr.mod.best.v, newdata = predictors.future, OOB=FALSE, type = "response", cores=24)
+
+
 
 ##scale 
 #If e < c < i, then the membership function is incr                   easing from e to i. If i < c < e, then the membership function is decreasing from i to e.
@@ -265,7 +269,7 @@ writeRaster(exposure.stack, filename='exposure.stack.nc', format="CDF", overwrit
 
 rm(exposure.stack)
 
-save.image("rforestTune.all_gcb_rev1.RData")#August4
+save.image("rforestTune.all_gcb_rev1.RData")#August5
 
 
 ##partial dependence and exposure
@@ -324,30 +328,38 @@ colnames(df11)<-c("elevation","erosion","gravity","ldi","sla","slope","tidecm","
 df12<- new.data11[,c("elev.med","eros.med","grav.med","ldi.med","sla.med","slope.med","tide.med","tx90.med","ccd.med","slr.med", "avmsl.med","formation")]
 colnames(df12)<-c("elevation","erosion","gravity","ldi","sla","slope","tidecm","tx90","ccd","slr","avmsl","formation")
 
-dfList<-list(df1,df2,df3,df4,df5,df6,df7,df8,df9,df10,df11,df12)
+dfList<-list(df1,df2,df3,f4,df5,df6,df7,df8,df9,df10,df11,df12)
 
-predict.ndvi<-lapply(dfList, function(x) predict(regr.mod.best, newdata = x, OOB=FALSE, type = "response"))
-ndvi.partial.exposure<- lapply(predict.ndvi, function(x) decreasing(x$data$response))
+predict.ndvi<-mclapply(dfList, function(x) predict(regr.mod.best, newdata = x, OOB=FALSE, type = "response"))
+ndvi.partial.exposure<- mclapply(predict.ndvi, function(x) decreasing(x$data$response))
 
-predict.vci<-lapply(dfList, function(x) predict(regr.mod.best.v, newdata = x, OOB=FALSE, type = "response"))
-vci.partial.exposure<- lapply(predict.vci, function(x) decreasing(x$data$response))
+predict.vci<-mclapply(dfList, function(x) predict(regr.mod.best.v, newdata = x, OOB=FALSE, type = "response"))
+vci.partial.exposure<- mclapply(predict.vci, function(x) decreasing(x$data$response))
+
+
+#save.image("rforestTune.all_gcb_rev1.RData")#aug62020
+
 
 ##convert lists to dataframe - ndvi
 part.exp.df.ndvi <- as.data.frame(t(data.frame(matrix(unlist(ndvi.partial.exposure), nrow=length(ndvi.partial.exposure), byrow=T))))
 colnames(part.exp.df.ndvi)<- c("elevation","erosion","gravity","ldi","sla","slope","tidecm","tx90","ccd","slr","avmsl","formation")
-exposure.ndvi<-cbind(all.data[,16],part.exp.df.ndvi, exposure[,1])
-colnames(exposure.ndvi)[1]<-"sector"
-colnames(exposure.ndvi)[14]<-"e.ndvi"
+exposure.ndvi0<-cbind(all.data[,"layer"],part.exp.df.ndvi, exposure[,1])
+colnames(exposure.ndvi0)[1]<-"sector"
+colnames(exposure.ndvi0)[14]<-"e.ndvi"
+
+drops <- c("formation","tidecm","tx90")
+exposure.ndvi<-exposure.ndvi0[ , !(names(exposure.ndvi0) %in% drops)]
+
 #all.exposure$exposure_index_fsum<-((all.exposure$e.ndvi+all.exposure$e.vci)-(all.exposure$e.vci*all.exposure$e.ndvi))
 #all.exposure$exposure_index_ave<-(all.exposure$e.ndvi+all.exposure$e.vci)/2
 
 ##convert lists to dataframe - vci
-
 part.exp.df.vci <- as.data.frame(t(data.frame(matrix(unlist(vci.partial.exposure), nrow=length(vci.partial.exposure), byrow=T))))
 colnames(part.exp.df.vci)<- c("elevation","erosion","gravity","ldi","sla","slope","tidecm","tx90","ccd","slr","avmsl","formation")
-exposure.vci<-cbind(all.data[,16],part.exp.df.vci, exposure[,2])
-colnames(exposure.vci)[1]<-"sector"
-colnames(exposure.vci)[14]<-"e.vci"
+exposure.vci0<-cbind(all.data[,"layer"],part.exp.df.vci, exposure[,2])
+colnames(exposure.vci0)[1]<-"sector"
+colnames(exposure.vci0)[14]<-"e.vci"
+exposure.vci<-exposure.vci0[ , !(names(exposure.vci0) %in% drops)]
 
 exposure.ndvi.1<-exposure.ndvi[,-1] #1
 exposure.ndvi.1$slr <- 1-predict.ndvi[[10]]$data$response
