@@ -461,8 +461,6 @@ ht_list = overall.plot+ndvi.plot + vci.plot
 draw(ht_list,heatmap_legend_side="bottom", ht_gap = unit(5, "mm"))
 dev.off()
 
-
-
 #save.image("rforestTune.all.RData")
 save.image("rforestTune.all_gcb_rev1.RData")#aug62020
 
