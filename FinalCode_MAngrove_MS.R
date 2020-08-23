@@ -462,7 +462,7 @@ draw(ht_list,heatmap_legend_side="bottom", ht_gap = unit(5, "mm"))
 dev.off()
 
 #save.image("rforestTune.all.RData")
-save.image("rforestTune.all_gcb_rev1.RData")#aug62020
+save.image("rforestTune.all_gcb_rev1.RData")#aug62020 - final model presented from these analyses
 
 
 #parallelStartSocket(cpus = 12)
@@ -475,16 +475,13 @@ num_cores=18
 #vci.crf.1<-partykit::cforest(vci ~elevation+erosion+gravity+ldi+sla +slope + tidecm+tx90+ccd+slr+avmsl+formation,data=all.data.vci,cores=num_cores,ntree=89, mtry=3)
 #ndvi.crf.1<-partykit::cforest(vci ~elevation+erosion+gravity+ldi+sla +slope + tidecm+tx90+ccd+slr+avmsl+formation,data=all.data.vci,cores=num_cores,ntree=89, mtry=3)
 
-train1 <- all.data.ndvi[train.index[,1],]
-ndvi.crf.1<-partykit::cforest(ndvi ~elevation+erosion+gravity+ldi+sla +slope +ccd+slr+avmsl,data=train1,cores=num_cores,ntree=100, mtry=3)
-vci.crf.1<-partykit::cforest(vci ~elevation+erosion+gravity+ldi+sla +slope + ccd+slr+avmsl,data=all.data.vci,cores=num_cores,ntree=89, mtry=3)
+#train1 <- all.data.ndvi[train.index[,1],]
+#ndvi.crf.1<-partykit::cforest(ndvi ~elevation+erosion+gravity+ldi+sla +slope +ccd+slr+avmsl,data=train1,cores=num_cores,ntree=100, mtry=3)
+#vci.crf.1<-partykit::cforest(vci ~elevation+erosion+gravity+ldi+sla +slope + ccd+slr+avmsl,data=all.data.vci,cores=num_cores,ntree=89, mtry=3)
 
 #control = cforest_unbiased(ntree = 50))
 
-system.time(varimpvci <- varimp(ndvi.crf.1,conditional=TRUE, ncores=18))
-
-
-
+#system.time(varimpvci <- varimp(ndvi.crf.1,conditional=TRUE, ncores=18))
 library(doParallel)
 cl<-makeCluster(12)
 registerDoParallel(cl)
@@ -495,6 +492,8 @@ pvci.4 <- partial(vci.crf.1, pred.var = c("slr", "avmsl"), chull = TRUE, paralle
 stopCluster()
 
 
+
+##perimp function for Random Forest variable importance
 
 
 
