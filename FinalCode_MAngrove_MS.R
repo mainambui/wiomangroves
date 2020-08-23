@@ -162,12 +162,15 @@ pdp.all = generatePartialDependenceData(regr.mod.best, regr.task, individual = F
 pdp.all.vci = generatePartialDependenceData(regr.mod.best.v, regr.task.v, individual = F, n = c(10, 25000))
 #plotPartialDependence(pdp.all.vci)
 
+#colnames(pdp.all$data)<-c('response',"elevation", "erosion","human pressure","land dev. intensity","sea level anomaly","slope","tidal range","heat waves","drought","sea level rate","mean sea level")      
 colnames(pdp.all$data)<-c('response',"elevation", "erosion","human pressure","land dev. intensity","sea level anomaly","slope","drought","sea level rate","mean sea level")      
 pdp.ndvi<-melt(pdp.all$data,id.vars = "response")
 
 pdp.ndvi$indicator<-"ndvi"
 
-colnames(pdp.all.vci$data)<-c('response',"elevation", "erosion","human pressure","land dev. intensity","sea level anomaly","slope","tidal range","heat waves","drought","sea level rate","mean sea level")      
+#colnames(pdp.all.vci$data)<-c('response',"elevation", "erosion","human pressure","land dev. intensity","sea level anomaly","slope","tidal range","heat waves","drought","sea level rate","mean sea level")      
+colnames(pdp.all.vci$data)<-c('response',"elevation", "erosion","human pressure","land dev. intensity","sea level anomaly","slope","drought","sea level rate","mean sea level")      
+
 pdp.vci<-melt(pdp.all.vci$data,id.vars = "response")
 
 pdp.vci$indicator<-"vci"
@@ -200,12 +203,12 @@ theme_ms <- function(base_size=12, base_family="Helvetica") {
       ))
 }
 
-tiff("Figure3_mangroveMs.tiff", units="in", width=8, height=7, res=300)
+tiff("Figure3_mangroveMs_NEW.tiff", units="in", width=8, height=7, res=300)
 fig<-ggplot(data=pdp.data,aes(x=value,y=response, col=indicator)) + geom_line() + facet_wrap(~variable, scales="free",ncol=3)+ xlab("Environmental driver") + ylab("Ecological condition index")
 fig+theme_ms()
 dev.off()
 
-pdf("Figure3_mangroveMss.pdf") 
+pdf("Figure3_mangroveMss_NEW.pdf") 
 fig<-ggplot(data=pdp.data,aes(x=value,y=response, col=indicator)) + geom_line() + facet_wrap(~variable, scales="free",ncol=3)+ xlab("Environmental driver") + ylab("Ecological condition index")
 fig+theme_ms()
 dev.off()
@@ -274,7 +277,7 @@ writeRaster(exposure.stack, filename='exposure.stack.nc', format="CDF", overwrit
 
 rm(exposure.stack)
 
-save.image("rforestTune.all_gcb_rev1.RData")#August5
+save.image("rforestTune.all_gcb_rev1.RData")#August22
 
 
 ##partial dependence and exposure
