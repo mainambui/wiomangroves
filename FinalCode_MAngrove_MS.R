@@ -17,40 +17,7 @@ library(sf)
 library(parallel)
 library(usdm)
 
-
-#setwd("D:/mainambui/mangrove_ccva/")
-setwd('/Volumes/Data/Projects/CCVA/Mangrove/Results_FINAL/Dataset_Final/Unnormalised/') 
-load("rforestTune.all_gcb_rev1.RData")
-#rforestTune.all_gcb_rev1.RData
-#coordinates(all.data)<-~x+y
-#typol<-readOGR(dsn='/Volumes/Data/Projects/CCVA/Mangrove/Sectors/',"mangrovewithtypology")
-#crs(all.data)<-crs(typol)
-#polys<-st_as_sf(typol)
-#pts<-st_as_sf(all.data)
-#all.data_rev <- as.data.frame(st_join(pts, polys, join = st_nearest_feature))
-
-
-#all.data_rev$FIN_TYP[all.data_rev$FIN_TYP==7] <-'Non_filter_Arheic'
-#all.data_rev$FIN_TYP[all.data_rev$FIN_TYP==1] <-'small_deltas'
-#all.data_rev$FIN_TYP[all.data_rev$FIN_TYP==2] <-'tidal_systems'
-#all.data_rev$FIN_TYP[all.data_rev$FIN_TYP==3] <-'lagoons'
-#all.data_rev$FIN_TYP[all.data_rev$FIN_TYP==51] <-'largeRiversTidalDeltas'
-
-#all.data<-read.csv("all.data.csv")
-#all.data$FIN_TYP<-as.factor(all.data_rev$FIN_TYP)
-
-#colnames(all.data)
-#colnames(all.data)[40]<-"formation"
-#all.data<-all.data[,2:40]
-#write.csv(all.data,"all.data.csv")
-#save.img("rforestTune.all_gcb_rev1.RData")
-
-#updating the sectors
-sector<-readOGR(dsn='/Volumes/Data/Projects/CCVA/Mangrove/Sectors/','wio_sectors')
-#pts.tree <- createTree(coordinates(sector))
-#inds.pts <- knnLookup(pts.tree, newdat=coordinates(all.data[,2:3]), k=1)
-#sector.pts<-sector@data[inds.pts,]
-#levels(sector.pts$layer)
+all.data<-read.csv("all.data.csv")
 
 #train.index <- createDataPartition(c(all.data$layer), times=2, p = .30, list = FALSE)
 train <- all.data[train.index[,1],]
